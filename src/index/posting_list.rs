@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::query::cursor::{Cursor, RangeMaxScore, RangeMaxScoreCursor};
 use serde::{Deserialize, Serialize};
 
@@ -21,27 +23,19 @@ pub struct CompressedBlock {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PostingList {
     range_maxes: BlockData,
-    kth_score: Vec<u8>,
+    kth_score: BTreeMap<usize, u8>,
 }
 
 impl PostingList {
-    pub fn new(range_maxes: BlockData, kth_score: Vec<u8>) -> Self {
+    pub fn new(range_maxes: BlockData, kth_score: BTreeMap<usize, u8>) -> Self {
         PostingList {
             range_maxes,
             kth_score,
         }
     }
-    const fn map_kth_value(value: usize) -> usize {
-        match value {
-            10 => 0,
-            100 => 1,
-            1000 => 2,
-            _ => value, // default case
-        }
-    }
 
     pub fn kth(&self, k: usize) -> u8 {
-        return self.kth_score[Self::map_kth_value(k)];
+        *self.kth_score.range(k..).next().unwrap().1
     }
 
     pub fn iter(&self, term_id: u32, term_weight: u32) -> PostingListIterator<'_> {

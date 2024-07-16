@@ -3,7 +3,7 @@ use fst::{Map, MapBuilder};
 use num_integer::div_ceil;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::cmp;
+use std::{cmp, collections::BTreeMap};
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Index {
@@ -130,10 +130,12 @@ impl IndexBuilder {
                 let mut sorted_scores: Vec<u32> = p_list.iter().map(|&(_, score)| score).collect();
                 sorted_scores.sort_by(|a, b| b.cmp(&a));
 
-                // Retrieve the 10th, 100th and 1000th elements
-                let s10th = sorted_scores.get(9).copied().unwrap_or(0) as u8;
-                let s100th = sorted_scores.get(99).copied().unwrap_or(0) as u8;
-                let s1000th = sorted_scores.get(999).copied().unwrap_or(0) as u8;
+                let mut kth_scores = BTreeMap::new();
+                let mut k_range = (10usize..100usize).step_by(10).collect::<Vec<_>>();
+                k_range.extend((100usize..1001usize).step_by(100));
+                for k in k_range {
+                    kth_scores.insert(k, sorted_scores.get(k - 1).copied().unwrap_or(0) as u8);
+                }
 
                 PostingList::new(
                     // p_list,
@@ -142,7 +144,7 @@ impl IndexBuilder {
                         true => BlockData::Compressed(Self::compress(&range_maxes)),
                         false => BlockData::Raw(range_maxes),
                     },
-                    vec![s10th, s100th, s1000th],
+                    kth_scores,
                 )
             })
             .collect();
