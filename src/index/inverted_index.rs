@@ -132,7 +132,7 @@ impl IndexBuilder {
 
                 let mut kth_scores = BTreeMap::new();
                 let mut k_range = (10usize..100usize).step_by(10).collect::<Vec<_>>();
-                k_range.extend((100usize..1001usize).step_by(100));
+                k_range.extend((100usize..2001usize).step_by(100));
                 for k in k_range {
                     kth_scores.insert(k, sorted_scores.get(k - 1).copied().unwrap_or(0) as u8);
                 }
