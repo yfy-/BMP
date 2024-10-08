@@ -35,7 +35,11 @@ impl PostingList {
     }
 
     pub fn kth(&self, k: usize) -> u8 {
-        *self.kth_score.range(k..).next().unwrap().1
+        if let Some(found) = self.kth_score.range(k..).next() {
+            return *found.1;
+        }
+
+        0
     }
 
     pub fn iter(&self, term_id: u32, term_weight: u32) -> PostingListIterator<'_> {
