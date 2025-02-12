@@ -4,10 +4,10 @@ use bmp::query::MAX_TERM_WEIGHT;
 use bmp::search::b_search_verbose;
 use bmp::util::to_trec;
 use bmp::CiffToBmp;
+use numpy::{IntoPyArray, PyArray1};
 use pyo3::prelude::*;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use numpy::{PyArray1, IntoPyArray};
 
 #[pyfunction]
 fn ciff2bmp(
@@ -121,31 +121,12 @@ impl Searcher {
             beta,
             false,
         );
-        // let doc_lexicon = self.index.documents();
-        // let mut docnos: Vec<String> = Vec::new();
-        // let mut scores: Vec<f32> = Vec::new(;)
-        let vecres = results[0].to_sorted_vec();
-        // let shape = &[(vecres.len() as i64)];
-        let vecdocs: Vec<i64> =
-            vecres.iter().map(|r| r.doc_id.0 as i64).collect();
-        // let docnos =
-        //     Tensor::from_slice(vecres.iter().map(|r| r.doc_id.0 as i32));
-        // let docnos = Tensor::zeros(shape, (Kind::Int64, Device::Cpu));
-        // let scores = Tensor::zeros(shape, kind::FLOAT_CPU);
-        // for (i, r) in vecres.iter().enumerate() {
-        //     let index1 = Tensor::of_slice(&[i as i64]).to_kind(Kind::Int64);
-        //     let index2 = Tensor::of_slice(&[i as i64]).to_kind(Kind::Int64);
-        //     docnos.index_put(
-        //         &[Some(index1)],
-        //         &Tensor::of_slice(&[r.doc_id.0 as i32]),
-        //         false,
-        //     );
-        //     scores.index_put(
-        //         &[Some(index2)],
-        //         &Tensor::of_slice(&[r.score as f32]),
-        //         false,
-        //     );
-        // }
+        let doc_lexicon = self.index.documents();
+        let vecdocs: Vec<i64> = results[0]
+            .to_sorted_vec()
+            .iter()
+            .map(|r| doc_lexicon[r.doc_id.0 as usize].parse().unwrap())
+            .collect();
         Ok(vecdocs.into_pyarray(py).to_owned().into())
     }
 }
