@@ -7,6 +7,7 @@ use bmp::CiffToBmp;
 use pyo3::prelude::*;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use numpy::{PyArray1, IntoPyArray};
 
 #[pyfunction]
 fn ciff2bmp(
@@ -64,17 +65,7 @@ impl Searcher {
         for (key, value) in &query {
             quant_query.insert(key.clone(), (value * scale).ceil() as u32);
         }
-        self.search_quantized(quant_query, k, alpha, beta)
-    }
-
-    fn search_quantized(
-        &self,
-        query: HashMap<String, u32>,
-        k: usize,
-        alpha: f32,
-        beta: f32,
-    ) -> PyResult<(Vec<String>, Vec<f32>)> {
-        let cursors: Vec<PostingListIterator> = query
+        let cursors: Vec<PostingListIterator> = quant_query
             .iter()
             .flat_map(|(token, freq)| self.index.get_cursor(token, *freq))
             .collect();
@@ -95,6 +86,67 @@ impl Searcher {
             scores.push(r.score.into());
         }
         Ok((docnos, scores))
+    }
+
+    fn search_ndarray(
+        &self,
+        query: HashMap<String, f32>,
+        k: usize,
+        alpha: f32,
+        beta: f32,
+        py: Python,
+    ) -> PyResult<Py<PyArray1<i64>>> {
+        let max_tok_weight = query
+            .iter()
+            .map(|p| *p.1)
+            .filter(|&value| !value.is_nan())
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap();
+        let mut quant_query: HashMap<String, u32> = HashMap::new();
+
+        let scale: f32 = MAX_TERM_WEIGHT as f32 / max_tok_weight;
+        for (key, value) in &query {
+            quant_query.insert(key.clone(), (value * scale).ceil() as u32);
+        }
+        let cursors: Vec<PostingListIterator> = quant_query
+            .iter()
+            .flat_map(|(token, freq)| self.index.get_cursor(token, *freq))
+            .collect();
+        let wrapped_cursors = vec![cursors; 1];
+        let mut results = b_search_verbose(
+            wrapped_cursors,
+            &self.bfwd,
+            k,
+            alpha,
+            beta,
+            false,
+        );
+        // let doc_lexicon = self.index.documents();
+        // let mut docnos: Vec<String> = Vec::new();
+        // let mut scores: Vec<f32> = Vec::new(;)
+        let vecres = results[0].to_sorted_vec();
+        // let shape = &[(vecres.len() as i64)];
+        let vecdocs: Vec<i64> =
+            vecres.iter().map(|r| r.doc_id.0 as i64).collect();
+        // let docnos =
+        //     Tensor::from_slice(vecres.iter().map(|r| r.doc_id.0 as i32));
+        // let docnos = Tensor::zeros(shape, (Kind::Int64, Device::Cpu));
+        // let scores = Tensor::zeros(shape, kind::FLOAT_CPU);
+        // for (i, r) in vecres.iter().enumerate() {
+        //     let index1 = Tensor::of_slice(&[i as i64]).to_kind(Kind::Int64);
+        //     let index2 = Tensor::of_slice(&[i as i64]).to_kind(Kind::Int64);
+        //     docnos.index_put(
+        //         &[Some(index1)],
+        //         &Tensor::of_slice(&[r.doc_id.0 as i32]),
+        //         false,
+        //     );
+        //     scores.index_put(
+        //         &[Some(index2)],
+        //         &Tensor::of_slice(&[r.score as f32]),
+        //         false,
+        //     );
+        // }
+        Ok(vecdocs.into_pyarray(py).to_owned().into())
     }
 }
 

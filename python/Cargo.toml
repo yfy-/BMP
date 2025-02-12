@@ -15,5 +15,6 @@ crate-type = ["cdylib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pyo3 = { version = "0.21.2", features = ["extension-module"] }
+pyo3 = { version = "0.23", features = ["extension-module"] }
+numpy = "0.23"
 bmp = { path = "../" }
