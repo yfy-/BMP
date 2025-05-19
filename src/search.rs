@@ -35,10 +35,10 @@ pub fn b_search_verbose(
         None
     };
 
-    let mut search_elapsed = 0;
+    let mut elapsed_times = vec![0; queries.len()];
     let mut buckets: Vec<Vec<u32>> = (0..=2usize.pow(16)).map(|_| Vec::new()).collect();
 
-    for query in queries.iter_mut() {
+    for (i, query) in queries.iter_mut().enumerate() {
         let total_terms = query.len();
         let terms_to_keep = (total_terms as f32 * terms_r).ceil() as usize;
         query.sort_by(|a, b| b.term_weight().partial_cmp(&a.term_weight()).unwrap());
@@ -133,7 +133,7 @@ pub fn b_search_verbose(
             current_block = next_block;
             current_ub = next_ub;
         }
-        search_elapsed += start_search.elapsed().as_micros();
+        elapsed_times[i] = start_search.elapsed().as_micros();
         results.push(topk.clone());
         if let Some(progress_bar) = &progress {
             progress_bar.inc(1);
@@ -143,11 +143,17 @@ pub fn b_search_verbose(
         progress_bar.finish();
     }
 
+    let num_queries = queries.len();
+    let mean_elapsed = elapsed_times.iter().sum::<u128>() as f64 / num_queries as f64;
+    elapsed_times.sort();
+
+    let median_elapsed = elapsed_times[num_queries / 2] as f64;
+    let p99_elapsed = elapsed_times[(num_queries as f64 * 0.99) as usize] as f64;
+
     if verbose {
-        eprintln!(
-            "search_elapsed = {}",
-            search_elapsed / results.len() as u128
-        );
+        eprintln!("mean search_elapsed={:.2}", mean_elapsed);
+        eprintln!("median search_elapsed={:.2}", median_elapsed);
+        eprintln!("p99 search_elapsed={:.2}", p99_elapsed);
     }
 
     results
