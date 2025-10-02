@@ -9,7 +9,10 @@ use structopt::StructOpt;
 // Function to perform the search for each query and return the results
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "search", about = "Search an index and produce a TREC output")]
+#[structopt(
+    name = "search",
+    about = "Search an index and produce a TREC output"
+)]
 
 struct Args {
     #[structopt(short, long, help = "Path to the index")]
@@ -18,7 +21,12 @@ struct Args {
     queries: PathBuf,
     #[structopt(short, long, help = "Number of documents to retrieve")]
     k: usize,
-    #[structopt(short, long, help = "approximation factor", default_value = "1.0")]
+    #[structopt(
+        short,
+        long,
+        help = "approximation factor",
+        default_value = "1.0"
+    )]
     alpha: f32,
     #[structopt(
         short,
@@ -27,6 +35,8 @@ struct Args {
         default_value = "1.0"
     )]
     beta: f32,
+    #[structopt(short, long, help = "Number of runs", default_value = "2")]
+    num_runs: usize,
 }
 fn main() -> Result<()> {
     let args = Args::from_args();
@@ -40,7 +50,8 @@ fn main() -> Result<()> {
     let (q_ids, cursors) = cursors_from_queries(args.queries, &index);
 
     eprintln!("Performing query processing");
-    let results = b_search(cursors, &bfwd, args.k, args.alpha, args.beta);
+    let results =
+        b_search(cursors, &bfwd, args.k, args.alpha, args.beta, args.num_runs);
 
     eprintln!("Exporting TREC run");
     // 4. Log results into TREC format
