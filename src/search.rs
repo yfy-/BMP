@@ -173,10 +173,10 @@ pub fn b_search_verbose(
     let p99_elapsed = search_elapsed[num_elapsed * 99 / 100];
 
     if verbose {
-        eprintln!(
-            "avg_elapsed={}\np50_elapsed={}\np95_elapsed={}\np95_elapsed={}",
-            avg_elapsed, median_elapsed, p95_elapsed, p99_elapsed
-        );
+        eprintln!("avg_elapsed={:.2}", avg_elapsed);
+        eprintln!("p50_elapsed={:.2}", median_elapsed);
+        eprintln!("p95_elapsed={:.2}", p95_elapsed);
+        eprintln!("p99_elapsed={:.2}", p99_elapsed);
     }
 
     results
