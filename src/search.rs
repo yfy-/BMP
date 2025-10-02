@@ -162,8 +162,8 @@ pub fn b_search_verbose(
 
     search_elapsed.sort();
     let mut total_elapsed: f64 = 0f64;
-    for se in search_elapsed {
-        total_elapsed += se as f64;
+    for se in search_elapsed.iter() {
+        total_elapsed += *se as f64;
     }
 
     let num_elapsed = search_elapsed.len();
