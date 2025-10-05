@@ -137,7 +137,7 @@ pub fn b_search_verbose(
                     .enumerate()
                     .map(|(range_id, &ub)| (ub as usize, range_id as u32));
 
-                process_blocks(it, &forward_index, &query_vec, alpha, &mut topk);
+                process_blocks_ns(it, &forward_index, &query_vec, alpha, &mut topk);
             }
 
             if run == 0 {
@@ -219,5 +219,63 @@ fn process_blocks<I> (
         }
         current_block = next_block;
         current_ub = next_ub;
+    }
+}
+
+fn process_blocks_ns<I> (
+    mut ub_iter: I,
+    forward_index: &BlockForwardIndex,
+    query_vec: &Vec<(u16, u8)>,
+    alpha: f32,
+    topk: &mut TopKHeap<u16>,
+) where I: Iterator<Item = (usize, u32)>
+{
+    let (mut current_ub, mut current_block) = ub_iter.next().unwrap();
+    unsafe {
+        _mm_prefetch(
+            forward_index.data.as_ptr().add(current_block as usize)
+                        as *const i8,
+            std::arch::x86_64::_MM_HINT_T0,
+        );
+    }
+    for (next_ub, next_block) in ub_iter {
+        unsafe {
+            _mm_prefetch(
+                forward_index.data.as_ptr().add(next_block as usize)
+                            as *const i8,
+                std::arch::x86_64::_MM_HINT_T0,
+            );
+        }
+
+        if (topk.threshold() as f32) < (current_ub as f32 * alpha) {
+            let offset = current_block as usize * forward_index.block_size;
+
+            let res = block_score(
+                &query_vec,
+                &forward_index.data[current_block as usize],
+                forward_index.block_size,
+            );
+
+            for (doc_id, &score) in res.iter().enumerate() {
+                topk.insert(DocId(doc_id as u32 + offset as u32), score);
+            }
+        }
+
+        current_block = next_block;
+        current_ub = next_ub;
+    }
+
+    if (topk.threshold() as f32) < (current_ub as f32 * alpha) {
+        let offset = current_block as usize * forward_index.block_size;
+
+        let res = block_score(
+            &query_vec,
+            &forward_index.data[current_block as usize],
+            forward_index.block_size,
+        );
+
+        for (doc_id, &score) in res.iter().enumerate() {
+            topk.insert(DocId(doc_id as u32 + offset as u32), score);
+        }
     }
 }
