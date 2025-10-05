@@ -37,6 +37,8 @@ struct Args {
     beta: f32,
     #[structopt(short, long, help = "Number of runs", default_value = "2")]
     num_runs: usize,
+    #[structopt(short, long, help = "Do not sort by block score upper-bounds")]
+    no_sort: bool,
 }
 fn main() -> Result<()> {
     let args = Args::from_args();
@@ -51,7 +53,7 @@ fn main() -> Result<()> {
 
     eprintln!("Performing query processing");
     let results =
-        b_search(cursors, &bfwd, args.k, args.alpha, args.beta, args.num_runs);
+        b_search(cursors, &bfwd, args.k, args.alpha, args.beta, args.num_runs, args.no_sort);
 
     eprintln!("Exporting TREC run");
     // 4. Log results into TREC format
