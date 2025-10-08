@@ -45,8 +45,8 @@ pub fn b_search_verbose(
     let progress = if verbose {
         Some(progress_bar(
             "Forward index-based search",
-            queries.len() * num_runs,
-        ))
+            queries.len() * (num_runs + 1)),
+        )
     } else {
         None
     };
