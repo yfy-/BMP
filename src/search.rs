@@ -90,11 +90,11 @@ pub fn b_search_verbose(
                 .map(|&pl| (pl.term_id() as u16, pl.term_weight() as u8))
                 .collect::<Vec<_>>();
             query_vec.sort_by_key(|e| e.0);
-            let threshold = query
-                .iter()
-                .map(|&pl| pl.kth(k) as u16 * pl.term_weight() as u16)
-                .max()
-                .unwrap_or(0);
+            // let threshold = query
+            //     .iter()
+            //     .map(|&pl| pl.kth(k) as u16 * pl.term_weight() as u16)
+            //     .max()
+            //     .unwrap_or(0);
 
             let run_compressed = query_ranges_compressed.len() > 0;
             let upper_bounds = match run_compressed {
@@ -110,16 +110,18 @@ pub fn b_search_verbose(
                 ),
             };
 
-            let mut topk = TopKHeap::with_threshold(k, threshold as u16);
+            // let mut topk = TopKHeap::with_threshold(k, threshold as u16);
+            let mut topk = TopKHeap::with_threshold(k, 0u16);
             if let Some(bckts) = buckets.as_mut() {
                 // reset & refill
                 for v in bckts.iter_mut() {
                     v.clear();
                 }
                 for (range_id, &ub) in upper_bounds.iter().enumerate() {
-                    if ub > threshold {
-                        bckts[ub as usize].push(range_id as u32);
-                    }
+                    // if ub > threshold {
+                    //     bckts[ub as usize].push(range_id as u32);
+                    // }
+                    bckts[ub as usize].push(range_id as u32);
                 }
 
                 // iterate by VALUE using `drain`, so items are (usize, u32)
