@@ -113,7 +113,9 @@ pub fn b_search_verbose(
             let mut topk = TopKHeap::with_threshold(k, threshold as u16);
             if let Some(bckts) = buckets.as_mut() {
                 // reset & refill
-                for v in bckts.iter_mut() { v.clear(); }
+                for v in bckts.iter_mut() {
+                    v.clear();
+                }
                 for (range_id, &ub) in upper_bounds.iter().enumerate() {
                     if ub > threshold {
                         bckts[ub as usize].push(range_id as u32);
@@ -121,15 +123,19 @@ pub fn b_search_verbose(
                 }
 
                 // iterate by VALUE using `drain`, so items are (usize, u32)
-                let it = bckts
-                    .iter_mut()
-                    .enumerate()
-                    .rev()
-                    .flat_map(|(outer_idx, inner_vec)| {
+                let it = bckts.iter_mut().enumerate().rev().flat_map(
+                    |(outer_idx, inner_vec)| {
                         inner_vec.drain(..).map(move |rid| (outer_idx, rid))
-                    });
+                    },
+                );
 
-                process_blocks(it, &forward_index, &query_vec, alpha, &mut topk);
+                process_blocks(
+                    it,
+                    &forward_index,
+                    &query_vec,
+                    alpha,
+                    &mut topk,
+                );
             } else {
                 // no buckets: derive pairs directly
                 let it = upper_bounds
@@ -137,7 +143,13 @@ pub fn b_search_verbose(
                     .enumerate()
                     .map(|(range_id, &ub)| (ub as usize, range_id as u32));
 
-                process_blocks_ns(it, &forward_index, &query_vec, alpha, &mut topk);
+                process_blocks_ns(
+                    it,
+                    &forward_index,
+                    &query_vec,
+                    alpha,
+                    &mut topk,
+                );
             }
 
             if run == 0 {
@@ -177,19 +189,20 @@ pub fn b_search_verbose(
     results
 }
 
-fn process_blocks<I> (
+fn process_blocks<I>(
     mut ub_iter: I,
     forward_index: &BlockForwardIndex,
     query_vec: &Vec<(u16, u8)>,
     alpha: f32,
     topk: &mut TopKHeap<u16>,
-) where I: Iterator<Item = (usize, u32)>
+) where
+    I: Iterator<Item = (usize, u32)>,
 {
     let (mut current_ub, mut current_block) = ub_iter.next().unwrap();
     unsafe {
         _mm_prefetch(
             forward_index.data.as_ptr().add(current_block as usize)
-                        as *const i8,
+                as *const i8,
             std::arch::x86_64::_MM_HINT_T0,
         );
     }
@@ -197,7 +210,7 @@ fn process_blocks<I> (
         unsafe {
             _mm_prefetch(
                 forward_index.data.as_ptr().add(next_block as usize)
-                            as *const i8,
+                    as *const i8,
                 std::arch::x86_64::_MM_HINT_T0,
             );
         }
@@ -222,32 +235,33 @@ fn process_blocks<I> (
     }
 }
 
-fn process_blocks_ns<I> (
+fn process_blocks_ns<I>(
     mut ub_iter: I,
     forward_index: &BlockForwardIndex,
     query_vec: &Vec<(u16, u8)>,
     alpha: f32,
     topk: &mut TopKHeap<u16>,
-) where I: Iterator<Item = (usize, u32)>
+) where
+    I: Iterator<Item = (usize, u32)>,
 {
     let (mut current_ub, mut current_block) = ub_iter.next().unwrap();
     unsafe {
         _mm_prefetch(
             forward_index.data.as_ptr().add(current_block as usize)
-                        as *const i8,
+                as *const i8,
             std::arch::x86_64::_MM_HINT_T0,
         );
     }
-    for (next_ub, next_block) in ub_iter {
-        unsafe {
-            _mm_prefetch(
-                forward_index.data.as_ptr().add(next_block as usize)
-                            as *const i8,
-                std::arch::x86_64::_MM_HINT_T0,
-            );
-        }
 
+    for (next_ub, next_block) in ub_iter {
         if (topk.threshold() as f32) < (current_ub as f32 * alpha) {
+            unsafe {
+                _mm_prefetch(
+                    forward_index.data.as_ptr().add(next_block as usize)
+                        as *const i8,
+                    std::arch::x86_64::_MM_HINT_T0,
+                );
+            }
             let offset = current_block as usize * forward_index.block_size;
 
             let res = block_score(
