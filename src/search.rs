@@ -319,7 +319,7 @@ fn process_blocks_hybrid(
     topk: &mut TopKHeap<u16>,
     buckets: &mut Vec<Vec<u32>>,
 ) {
-    let ub_hc_iter = upper_bounds
+    let mut ub_hc_iter = upper_bounds
         .iter()
         .enumerate()
         .map(|(range_id, &ub)| (ub as usize, range_id as u32));
