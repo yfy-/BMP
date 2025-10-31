@@ -17,6 +17,7 @@ pub fn b_search(
     terms_r: f32,
     num_runs: usize,
     no_sort: bool,
+    hybrid_threshold_factor: f32,
 ) -> Vec<TopKHeap<u16>> {
     b_search_verbose(
         queries,
@@ -26,6 +27,7 @@ pub fn b_search(
         terms_r,
         num_runs,
         no_sort,
+        hybrid_threshold_factor,
         true,
     )
 }
@@ -38,6 +40,7 @@ pub fn b_search_verbose(
     terms_r: f32,
     num_runs: usize,
     no_sort: bool,
+    hybrid_threshold_factor: f32,
     verbose: bool,
 ) -> Vec<TopKHeap<u16>> {
     let mut results: Vec<TopKHeap<u16>> = Vec::new();
@@ -45,8 +48,8 @@ pub fn b_search_verbose(
     let progress = if verbose {
         Some(progress_bar(
             "Forward index-based search",
-            queries.len() * (num_runs + 1)),
-        )
+            queries.len() * (num_runs + 1),
+        ))
     } else {
         None
     };
@@ -112,33 +115,45 @@ pub fn b_search_verbose(
             };
 
             let mut topk = TopKHeap::with_threshold(k, threshold as u16);
-            if let Some(bckts) = buckets.as_mut() {
+            if let Some(mut bckts) = buckets.as_mut() {
                 // reset & refill
                 for v in bckts.iter_mut() {
                     v.clear();
                 }
-                for (range_id, &ub) in upper_bounds.iter().enumerate() {
-                    if ub > threshold {
-                        bckts[ub as usize].push(range_id as u32);
+
+                if hybrid_threshold_factor > 0.0 {
+                    process_blocks_hybrid(
+                        &upper_bounds,
+                        &forward_index,
+                        &query_vec,
+                        alpha,
+                        threshold as f32 * hybrid_threshold_factor,
+                        &mut topk,
+                        &mut bckts,
+                    );
+                } else {
+                    for (range_id, &ub) in upper_bounds.iter().enumerate() {
+                        if ub > threshold {
+                            bckts[ub as usize].push(range_id as u32);
+                        }
                     }
+
+                    // iterate by VALUE using `drain`, so items are (usize, u32)
+                    let it = bckts.iter_mut().enumerate().rev().flat_map(
+                        |(outer_idx, inner_vec)| {
+                            inner_vec.drain(..).map(move |rid| (outer_idx, rid))
+                        },
+                    );
+
+                    process_blocks(
+                        it,
+                        &forward_index,
+                        &query_vec,
+                        alpha,
+                        &mut topk,
+                    );
                 }
-
-                // iterate by VALUE using `drain`, so items are (usize, u32)
-                let it = bckts.iter_mut().enumerate().rev().flat_map(
-                    |(outer_idx, inner_vec)| {
-                        inner_vec.drain(..).map(move |rid| (outer_idx, rid))
-                    },
-                );
-
-                process_blocks(
-                    it,
-                    &forward_index,
-                    &query_vec,
-                    alpha,
-                    &mut topk,
-                );
             } else {
-                // no buckets: derive pairs directly
                 let it = upper_bounds
                     .iter()
                     .enumerate()
@@ -293,4 +308,77 @@ fn process_blocks_ns<I>(
             topk.insert(DocId(doc_id as u32 + offset as u32), score);
         }
     }
+}
+
+fn process_blocks_hybrid(
+    upper_bounds: &Vec<u16>,
+    forward_index: &BlockForwardIndex,
+    query_vec: &Vec<(u16, u8)>,
+    alpha: f32,
+    threshold_switch: f32,
+    topk: &mut TopKHeap<u16>,
+    buckets: &mut Vec<Vec<u32>>,
+) {
+    let ub_hc_iter = upper_bounds
+        .iter()
+        .enumerate()
+        .map(|(range_id, &ub)| (ub as usize, range_id as u32));
+
+    let (mut current_ub, mut current_block) = ub_hc_iter.next().unwrap();
+    unsafe {
+        _mm_prefetch(
+            forward_index.data.as_ptr().add(current_block as usize)
+                as *const i8,
+            std::arch::x86_64::_MM_HINT_T0,
+        );
+    }
+
+    for (next_ub, next_block) in ub_hc_iter {
+        if (topk.threshold() as f32) < (current_ub as f32 * alpha) {
+            unsafe {
+                _mm_prefetch(
+                    forward_index.data.as_ptr().add(next_block as usize)
+                        as *const i8,
+                    std::arch::x86_64::_MM_HINT_T0,
+                );
+            }
+            let offset = current_block as usize * forward_index.block_size;
+
+            let res = block_score(
+                &query_vec,
+                &forward_index.data[current_block as usize],
+                forward_index.block_size,
+            );
+
+            for (doc_id, &score) in res.iter().enumerate() {
+                topk.insert(DocId(doc_id as u32 + offset as u32), score);
+            }
+
+            if topk.threshold() as f32 >= threshold_switch {
+                current_block = next_block;
+                current_ub = next_ub;
+                break;
+            }
+        }
+
+        current_block = next_block;
+        current_ub = next_ub;
+    }
+
+    for (range_id, &ub) in
+        upper_bounds[current_block as usize..].iter().enumerate()
+    {
+        if ub > topk.threshold() {
+            buckets[ub as usize].push(range_id as u32);
+        }
+    }
+
+    // iterate by VALUE using `drain`, so items are (usize, u32)
+    let it = buckets.iter_mut().enumerate().rev().flat_map(
+        |(outer_idx, inner_vec)| {
+            inner_vec.drain(..).map(move |rid| (outer_idx, rid))
+        },
+    );
+
+    process_blocks(it, forward_index, query_vec, alpha, topk);
 }

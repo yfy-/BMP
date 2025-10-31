@@ -39,6 +39,13 @@ struct Args {
     num_runs: usize,
     #[structopt(short, long, help = "Do not sort by block score upper-bounds")]
     no_sort: bool,
+    #[structopt(
+        short,
+        long,
+        help = "Hybrid block order switch threshold factor",
+        default_value = "0.0"
+    )]
+    hybrid_threshold_factor: f32,
 }
 fn main() -> Result<()> {
     let args = Args::from_args();
@@ -52,8 +59,16 @@ fn main() -> Result<()> {
     let (q_ids, cursors) = cursors_from_queries(args.queries, &index);
 
     eprintln!("Performing query processing");
-    let results =
-        b_search(cursors, &bfwd, args.k, args.alpha, args.beta, args.num_runs, args.no_sort);
+    let results = b_search(
+        cursors,
+        &bfwd,
+        args.k,
+        args.alpha,
+        args.beta,
+        args.num_runs,
+        args.no_sort,
+        args.hybrid_threshold_factor,
+    );
 
     eprintln!("Exporting TREC run");
     // 4. Log results into TREC format
