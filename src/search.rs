@@ -368,7 +368,7 @@ fn process_blocks_hybrid(
         upper_bounds[current_block as usize..].iter().enumerate()
     {
         if ub > topk.threshold() {
-            buckets[ub as usize].push(range_id as u32);
+            buckets[ub as usize].push(range_id as u32 + current_block);
         }
     }
 
