@@ -214,40 +214,41 @@ fn process_blocks<I>(
 ) where
     I: Iterator<Item = (usize, u32)>,
 {
-    let (mut current_ub, mut current_block) = ub_iter.next().unwrap();
-    unsafe {
-        _mm_prefetch(
-            forward_index.data.as_ptr().add(current_block as usize)
-                as *const i8,
-            std::arch::x86_64::_MM_HINT_T0,
-        );
-    }
-    for (next_ub, next_block) in ub_iter {
+    if let Some((mut current_ub, mut current_block)) = ub_iter.next() {
         unsafe {
             _mm_prefetch(
-                forward_index.data.as_ptr().add(next_block as usize)
+                forward_index.data.as_ptr().add(current_block as usize)
                     as *const i8,
                 std::arch::x86_64::_MM_HINT_T0,
             );
         }
+        for (next_ub, next_block) in ub_iter {
+            unsafe {
+                _mm_prefetch(
+                    forward_index.data.as_ptr().add(next_block as usize)
+                        as *const i8,
+                    std::arch::x86_64::_MM_HINT_T0,
+                );
+            }
 
-        let offset = current_block as usize * forward_index.block_size;
+            let offset = current_block as usize * forward_index.block_size;
 
-        let res = block_score(
-            &query_vec,
-            &forward_index.data[current_block as usize],
-            forward_index.block_size,
-        );
+            let res = block_score(
+                &query_vec,
+                &forward_index.data[current_block as usize],
+                forward_index.block_size,
+            );
 
-        for (doc_id, &score) in res.iter().enumerate() {
-            topk.insert(DocId(doc_id as u32 + offset as u32), score);
+            for (doc_id, &score) in res.iter().enumerate() {
+                topk.insert(DocId(doc_id as u32 + offset as u32), score);
+            }
+
+            if topk.threshold() as f32 > current_ub as f32 * alpha {
+                break;
+            }
+            current_block = next_block;
+            current_ub = next_ub;
         }
-
-        if topk.threshold() as f32 > current_ub as f32 * alpha {
-            break;
-        }
-        current_block = next_block;
-        current_ub = next_ub;
     }
 }
 
@@ -334,6 +335,10 @@ fn process_blocks_hybrid(
     }
 
     for (next_ub, next_block) in ub_hc_iter {
+        if topk.threshold() as f32 >= threshold_switch {
+            break;
+        }
+
         if (topk.threshold() as f32) < (current_ub as f32 * alpha) {
             unsafe {
                 _mm_prefetch(
@@ -352,12 +357,6 @@ fn process_blocks_hybrid(
 
             for (doc_id, &score) in res.iter().enumerate() {
                 topk.insert(DocId(doc_id as u32 + offset as u32), score);
-            }
-
-            if topk.threshold() as f32 >= threshold_switch {
-                current_block = next_block;
-                current_ub = next_ub;
-                break;
             }
         }
 
