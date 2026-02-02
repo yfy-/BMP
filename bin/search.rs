@@ -46,6 +46,8 @@ struct Args {
         default_value = "0.0"
     )]
     hybrid_threshold_factor: f32,
+    #[structopt(short, long, help = "Print individual query latency to stderr.")]
+    query_latency: bool,
 }
 fn main() -> Result<()> {
     let args = Args::from_args();
@@ -68,6 +70,7 @@ fn main() -> Result<()> {
         args.num_runs,
         args.no_sort,
         args.hybrid_threshold_factor,
+        args.query_latency,
     );
 
     eprintln!("Exporting TREC run");

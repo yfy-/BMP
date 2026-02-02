@@ -18,6 +18,7 @@ pub fn b_search(
     num_runs: usize,
     no_sort: bool,
     hybrid_threshold_factor: f32,
+    query_latency: bool,
 ) -> Vec<TopKHeap<u16>> {
     b_search_verbose(
         queries,
@@ -28,6 +29,7 @@ pub fn b_search(
         num_runs,
         no_sort,
         hybrid_threshold_factor,
+        query_latency,
         true,
     )
 }
@@ -41,6 +43,7 @@ pub fn b_search_verbose(
     num_runs: usize,
     no_sort: bool,
     hybrid_threshold_factor: f32,
+    query_latency: bool,
     verbose: bool,
 ) -> Vec<TopKHeap<u16>> {
     let mut results: Vec<TopKHeap<u16>> = Vec::new();
@@ -48,21 +51,22 @@ pub fn b_search_verbose(
     let progress = if verbose {
         Some(progress_bar(
             "Forward index-based search",
-            queries.len() * (num_runs + 1),
+            queries.len() * num_runs,
         ))
     } else {
         None
     };
 
-    let mut search_elapsed: Vec<u128> = vec![];
+    let mut search_elapsed: Vec<Vec<u128>> =
+        vec![vec![0u128; num_runs]; queries.len()];
     let mut buckets: Option<Vec<Vec<u32>>> = if no_sort {
         None
     } else {
         Some((0..=2usize.pow(16)).map(|_| Vec::new()).collect())
     };
 
-    for run in 0..=num_runs {
-        for query in queries.iter_mut() {
+    for run in 0..num_runs {
+        for (q_idx, query) in queries.iter_mut().enumerate() {
             let start_search: Instant = Instant::now();
             let total_terms = query.len();
             let terms_to_keep = (total_terms as f32 * terms_r).ceil() as usize;
@@ -168,10 +172,10 @@ pub fn b_search_verbose(
                 );
             }
 
+            search_elapsed[q_idx][run] = start_search.elapsed().as_micros();
+
             if run == 0 {
                 results.push(topk.clone());
-            } else {
-                search_elapsed.push(start_search.elapsed().as_micros());
             }
 
             if let Some(progress_bar) = &progress {
@@ -183,19 +187,28 @@ pub fn b_search_verbose(
         progress_bar.finish();
     }
 
-    search_elapsed.sort();
-    let mut total_elapsed: f64 = 0f64;
-    for se in search_elapsed.iter() {
-        total_elapsed += *se as f64;
-    }
+    let mut pivot_elapsed = search_elapsed
+        .iter()
+        .map(|run_elapsed| (*run_elapsed.iter().min().unwrap()))
+        .collect::<Vec<_>>();
 
-    let num_elapsed = search_elapsed.len();
-    let avg_elapsed = total_elapsed / num_elapsed as f64;
-    let median_elapsed = search_elapsed[num_elapsed / 2];
-    let p95_elapsed = search_elapsed[num_elapsed * 95 / 100];
-    let p99_elapsed = search_elapsed[num_elapsed * 99 / 100];
+    if query_latency {
+        eprintln!("qid\tusec");
+        for (qid, pe) in pivot_elapsed.iter().enumerate() {
+            eprintln!("{}\t{}", qid, pe);
+        }
+    } else {
+        pivot_elapsed.sort();
+        let mut total_elapsed: f64 = 0f64;
+        for pe in pivot_elapsed.iter() {
+            total_elapsed += *pe as f64;
+        }
 
-    if verbose {
+        let num_elapsed = pivot_elapsed.len();
+        let avg_elapsed = total_elapsed / num_elapsed as f64;
+        let median_elapsed = pivot_elapsed[num_elapsed / 2];
+        let p95_elapsed = pivot_elapsed[num_elapsed * 95 / 100];
+        let p99_elapsed = pivot_elapsed[num_elapsed * 99 / 100];
         eprintln!("avg_elapsed={:.2}", avg_elapsed);
         eprintln!("p50_elapsed={:.2}", median_elapsed);
         eprintln!("p95_elapsed={:.2}", p95_elapsed);
