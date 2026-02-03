@@ -46,7 +46,7 @@ struct Args {
         default_value = "0.0"
     )]
     hybrid_threshold_factor: f32,
-    #[structopt(short, long, help = "Print individual query latency to stderr.")]
+    #[structopt(long, help = "Print individual query latency to stderr.")]
     query_latency: bool,
 }
 fn main() -> Result<()> {
@@ -73,8 +73,12 @@ fn main() -> Result<()> {
         args.query_latency,
     );
 
-    eprintln!("Exporting TREC run");
-    // 4. Log results into TREC format
-    print!("{}", to_trec(&q_ids, results, index.documents()));
+    // Only output query latencies if its provided.
+    if !args.query_latency {
+        eprintln!("Exporting TREC run");
+        // 4. Log results into TREC format
+        print!("{}", to_trec(&q_ids, results, index.documents()));
+    }
+
     Ok(())
 }

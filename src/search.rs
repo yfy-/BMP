@@ -193,9 +193,9 @@ pub fn b_search_verbose(
         .collect::<Vec<_>>();
 
     if query_latency {
-        eprintln!("qid\tusec");
+        println!("qid\tusec");
         for (qid, pe) in pivot_elapsed.iter().enumerate() {
-            eprintln!("{}\t{}", qid, pe);
+            println!("{}\t{}", qid, pe);
         }
     } else {
         pivot_elapsed.sort();
