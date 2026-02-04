@@ -7,6 +7,7 @@ use crate::query::live_block;
 use crate::query::topk_heap::TopKHeap;
 use crate::util::progress_bar;
 use std::arch::x86_64::_mm_prefetch;
+use std::cmp;
 use std::time::Instant;
 
 pub fn b_search(
@@ -57,8 +58,7 @@ pub fn b_search_verbose(
         None
     };
 
-    let mut search_elapsed: Vec<Vec<u128>> =
-        vec![vec![0u128; num_runs]; queries.len()];
+    let mut search_elapsed: Vec<u128> = vec![u128::MAX; queries.len()];
     let mut buckets: Option<Vec<Vec<u32>>> = if no_sort {
         None
     } else {
@@ -172,7 +172,10 @@ pub fn b_search_verbose(
                 );
             }
 
-            search_elapsed[q_idx][run] = start_search.elapsed().as_micros();
+            search_elapsed[q_idx] = cmp::min(
+                search_elapsed[q_idx],
+                start_search.elapsed().as_micros(),
+            );
 
             if run == 0 {
                 results.push(topk.clone());
@@ -187,28 +190,23 @@ pub fn b_search_verbose(
         progress_bar.finish();
     }
 
-    let mut pivot_elapsed = search_elapsed
-        .iter()
-        .map(|run_elapsed| (*run_elapsed.iter().min().unwrap()))
-        .collect::<Vec<_>>();
-
     if query_latency {
         println!("qid\tusec");
-        for (qid, pe) in pivot_elapsed.iter().enumerate() {
+        for (qid, pe) in search_elapsed.iter().enumerate() {
             println!("{}\t{}", qid, pe);
         }
     } else {
-        pivot_elapsed.sort();
+        search_elapsed.sort();
         let mut total_elapsed: f64 = 0f64;
-        for pe in pivot_elapsed.iter() {
+        for pe in search_elapsed.iter() {
             total_elapsed += *pe as f64;
         }
 
-        let num_elapsed = pivot_elapsed.len();
+        let num_elapsed = search_elapsed.len();
         let avg_elapsed = total_elapsed / num_elapsed as f64;
-        let median_elapsed = pivot_elapsed[num_elapsed / 2];
-        let p95_elapsed = pivot_elapsed[num_elapsed * 95 / 100];
-        let p99_elapsed = pivot_elapsed[num_elapsed * 99 / 100];
+        let median_elapsed = search_elapsed[num_elapsed / 2];
+        let p95_elapsed = search_elapsed[num_elapsed * 95 / 100];
+        let p99_elapsed = search_elapsed[num_elapsed * 99 / 100];
         eprintln!("avg_elapsed={:.2}", avg_elapsed);
         eprintln!("p50_elapsed={:.2}", median_elapsed);
         eprintln!("p95_elapsed={:.2}", p95_elapsed);
