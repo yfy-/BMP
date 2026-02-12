@@ -195,23 +195,23 @@ pub fn b_search_verbose(
         for (qid, pe) in search_elapsed.iter().enumerate() {
             println!("{}\t{}", qid, pe);
         }
-    } else {
-        search_elapsed.sort();
-        let mut total_elapsed: f64 = 0f64;
-        for pe in search_elapsed.iter() {
-            total_elapsed += *pe as f64;
-        }
-
-        let num_elapsed = search_elapsed.len();
-        let avg_elapsed = total_elapsed / num_elapsed as f64;
-        let median_elapsed = search_elapsed[num_elapsed / 2];
-        let p95_elapsed = search_elapsed[num_elapsed * 95 / 100];
-        let p99_elapsed = search_elapsed[num_elapsed * 99 / 100];
-        eprintln!("avg_elapsed={:.2}", avg_elapsed);
-        eprintln!("p50_elapsed={:.2}", median_elapsed);
-        eprintln!("p95_elapsed={:.2}", p95_elapsed);
-        eprintln!("p99_elapsed={:.2}", p99_elapsed);
     }
+
+    search_elapsed.sort();
+    let mut total_elapsed: f64 = 0f64;
+    for pe in search_elapsed.iter() {
+        total_elapsed += *pe as f64;
+    }
+
+    let num_elapsed = search_elapsed.len();
+    let avg_elapsed = total_elapsed / num_elapsed as f64;
+    let median_elapsed = search_elapsed[num_elapsed / 2];
+    let p95_elapsed = search_elapsed[num_elapsed * 95 / 100];
+    let p99_elapsed = search_elapsed[num_elapsed * 99 / 100];
+    eprintln!("avg_elapsed={:.2}", avg_elapsed);
+    eprintln!("p50_elapsed={:.2}", median_elapsed);
+    eprintln!("p95_elapsed={:.2}", p95_elapsed);
+    eprintln!("p99_elapsed={:.2}", p99_elapsed);
 
     results
 }
