@@ -1,87 +1,58 @@
-<p align="center">
-    <img width="200px" src="img/logo.jpg" />
-    <h1 align="center">BMP</h1>
-</p>
+# BMP (fork)
 
-# Faster Learned Sparse Retrieval with Block-Max Pruning
+A research fork of Block-Max Pruning with the code of the works below.
 
-This repository contains the source code used for the experiments presented in the paper "Faster Learned Sparse Retrieval with Block-Max Pruning" by Antonio Mallia, Torsten Suel and Nicola Tonellotto, published at SIGIR, 2024 - [PDF](https://arxiv.org/pdf/2405.01117). 
+## Sparcent
 
-Please cite the following paper if you use this code, or a modified version of it:
+[Sparcent: faster multi-vector dense retrieval with sparse centroid indices](https://doi.org/10.1007/s10115-026-02907-x)
+(Knowledge and Information Systems, 2026) retrieves centroids from its sparse centroid index with
+BMP, one query at a time from PyTorch code (see [sparcent](https://github.com/yfy-/sparcent)):
 
-```bibtex
-@inproceedings{BMP,
-  author = {Antonio Mallia and Torsten Suel and Nicola Tonellotto},
-  title = {Faster Learned Sparse Retrieval with Block-Max Pruning},
-  booktitle = {The 47th International ACM SIGIR Conference on Research and Development in Information Retrieval ({SIGIR})},
-  publisher = {ACM},
-  year = {2024}
-}
+- Python bindings: `Searcher.search_ndarray(query, k, alpha, beta)` returns the integer document
+  ids of one query as a NumPy array (low overhead for per-query calls), and results are mapped
+  through the document lexicon.
+- Threshold initialization from the per-term k-th scores works for any `k` (nearest stored `k`
+  up to 2000, otherwise 0).
+
+## Document reordering
+
+[Document Reordering for Efficient Dynamic Pruning in Traditional and Learned Sparse Retrieval](https://doi.org/10.1109/ACCESS.2026.3690983)
+(IEEE Access, 2026) reorders documents using past query results, e.g. by how often they were
+retrieved (hit count), so that the top-k threshold rises sooner. For such indexes, the `search`
+tool can change the block processing order:
+
+- `--no-sort` processes blocks in document id order instead of by decreasing score upper bound.
+- `--hybrid-threshold-factor f` processes blocks in document id order until the top-k threshold
+  reaches `f` times its initial estimate, then the remaining blocks by score upper bound.
+
+## Latency measurement
+
+`search --num-runs n` runs each query `n` times and reports mean/p50/p95/p99 of the per-query
+minimum latency; `--query-latency` also prints each query's latency.
+
+## Usage
+
+```bash
+cargo build --release
+./target/release/ciff2bmp -b 8 --compress-range -c index.ciff -o index.bmp
+./target/release/search -i index.bmp -q queries.pisa -k 1000 --num-runs 3 > run.trec
 ```
 
-### Usage
-
-#### Data
-The CIFF files and the queries required by BMP to generate an index and perform search operations can be found in the so called [CIFF-Hub](https://github.com/pisa-engine/ciff-hub/tree/main).
-
-**One requirement for BMP to work correctly is that the impact scores of the CIFF files have to be quantized to 8 bits. This is not always done and for this reason is highly recommended to use the CIFF files from the Hub**
-
-#### Index
-```
-./target/release/ciff2bmp -b 8 -c ./bp-msmarco-passage-unicoil-quantized.ciff -o bp-msmarco-passage-unicoil-quantized.bmp --compress-range
-```
-#### Search
-```
-./target/release/search --index bp-msmarco-passage-unicoil-quantized.bmp --k 1000 --queries dev.pisa > bp-msmarco-passage-unicoil-quantized.dev.trec
-```
-#### Evaluate
-```
-trec_eval -M 10 -m recip_rank qrels.msmarco-passage.dev-subset.txt bp-msmarco-passage-unicoil-quantized.dev.trec
-```
-
-## Python Bindings
-
-<p align="center">
-    <img width="100px" src="./img/logo.jpg" />
-    <img width="100px" src="./img/plus.png" />
-    <img width="100px" src="./img/python.png" />
-    <h1 align="center">BMP</h1>
-</p>
-
-### Install
-
-Form PyPi:
-
-```
-pip intall bmp
-```
-
-From source (in the 'python' directory, i.e `cd python`):
-
-```
-pip install maturin
-maturin build -r
-pip install target/wheels/*.whl
-```
-
-### Usage
-#### Index
-```python
-from bmp import ciff2bmp
-
-ciff2bmp(ciff_file="/path/to/ciff", output="/path/to/index", bsize=32, compress_range=False)
-```
-#### Search
+Python bindings (`pip install ./python`, needs Rust):
 
 ```python
-from bmp import search, Searcher
+import bmp
 
-# batch operation
-results = search(index="/path/to/index", queries="/path/to/queries", k=10, alpha=1.0, beta=1.0)
-# -> str (TREC run file)
-
-# query-by-query operation
-searcher = Searcher("/path/to/index") # loads index into memory once
-searcher.search({'tok1': 5.3, 'tok2': 1.1}, k=10, alpha=1.0, beta=1.0)
-# -> Tuple[List[str], List[float]] (doc IDs, scores) for this query
+bmp.ciff2bmp(ciff_file="index.ciff", output="index.bmp", bsize=8, compress_range=True)
+searcher = bmp.Searcher("index.bmp")
+ids = searcher.search_ndarray({"car": 3.0, "engine": 1.5}, k=10, alpha=1.0, beta=1.0)
 ```
+
+The impact scores of the CIFF file must be quantized to 8 bits.
+
+## Acknowledgements
+
+This is a fork of [BMP](https://github.com/pisa-engine/BMP) by Antonio Mallia, Torsten Suel and
+Nicola Tonellotto; all credit for Block-Max Pruning goes to them. See the original repository for
+details, and cite [Faster Learned Sparse Retrieval with Block-Max Pruning](https://arxiv.org/abs/2405.01117)
+(SIGIR'24).

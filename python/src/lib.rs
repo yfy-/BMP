@@ -76,7 +76,11 @@ impl Searcher {
             k,
             alpha,
             beta,
-            false,
+            1,     // num_runs
+            false, // no_sort
+            0.0,   // hybrid_threshold_factor
+            false, // query_latency
+            false, // verbose
         );
         let doc_lexicon = self.index.documents();
         let mut docnos: Vec<String> = Vec::new();
@@ -119,7 +123,11 @@ impl Searcher {
             k,
             alpha,
             beta,
-            false,
+            1,     // num_runs
+            false, // no_sort
+            0.0,   // hybrid_threshold_factor
+            false, // query_latency
+            false, // verbose
         );
         let doc_lexicon = self.index.documents();
         let vecdocs: Vec<i64> = results[0]
@@ -148,7 +156,8 @@ fn search(
     let (q_ids, cursors) = cursors_from_queries(queries, &index);
 
     eprintln!("Performing query processing");
-    let results = b_search_verbose(cursors, &bfwd, k, alpha, beta, true);
+    let results =
+        b_search_verbose(cursors, &bfwd, k, alpha, beta, 1, false, 0.0, false, true);
 
     eprintln!("Exporting TREC run");
     // 4. Log results into TREC format
